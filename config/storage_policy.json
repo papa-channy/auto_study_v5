@@ -1,0 +1,25 @@
+{
+    "persistent": {
+      "prompt_templates": "config/conf_p.py",
+      "example_jsons": "examples/ex_{tool}.json",
+  
+      "raw_questions_txt": "data/raw_questions.txt",
+      "clean_questions_txt": "data/clean_questions.txt",
+  
+      "llm_tags_json": "data/llm_tags.json",
+      "structured_questions_json": "data/questions.json",
+      "structured_questions_xlsx": "data/questions.xlsx",
+  
+      "comparison_log_json": "logs/q_comparison_log.json",
+      "comparison_log_xlsx": "logs/q_comparison_log.xlsx"
+    },
+    "pandas_objects": {
+      "h": "raw_questions_df",
+      "i": "llm_tags_df",
+      "m": "clean_questions_df",
+      "o": "structured_questions_df",
+      "p": "comparison_log_df"
+    },
+    "volatile": ["f", "g", "j", "k", "l", "n"]
+  }
+  
