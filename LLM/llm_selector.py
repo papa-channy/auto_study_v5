@@ -20,9 +20,10 @@ def get_available_llms():
         data = json.load(f)
     return [llm.lower() for llm in data.get("LLM", [])]
 
-def call_llm(prompt: str, llm_name: str, temperature: float = 0.6) -> str:
+def call_llm(prompt: str, llm_name: str, temperature: float = 0.6, **kwargs) -> str:
     """
     LLM 이름에 따라 자동으로 적절한 call_llm 함수 연결
+    + 추가 인자(kwargs)는 하위 LLM에게 그대로 전달
     """
     key = llm_name.lower()
 
@@ -31,9 +32,10 @@ def call_llm(prompt: str, llm_name: str, temperature: float = 0.6) -> str:
 
     for name, func in LLM_MAP.items():
         if name in key:
-            return func(prompt, llm_name, temperature)
+            return func(prompt=prompt, llm_name=llm_name, temperature=temperature, **kwargs)  # ✅ 안전하게 전달
 
     raise ValueError(f"❌ 지원하지 않는 LLM: {llm_name}")
+
 
 # 🔁 q_gen.py 호환성 유지용 export
 generate_by_llm = call_llm

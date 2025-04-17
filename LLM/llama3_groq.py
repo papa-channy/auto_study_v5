@@ -9,11 +9,10 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
-def call_llm(prompt: str, llm_name: str, temperature: float = 0.6) -> str:
-    """
-    ✅ 실제 Groq API (LLaMA3 등) 사용
-    """
+# llama3_groq.py
+def call_llm(prompt: str, llm_name: str, temperature: float = 0.6, **kwargs) -> str:
     try:
+        
         res = client.chat.completions.create(
             model="llama3-8b-8192",
             messages=[{"role": "user", "content": prompt}],
@@ -22,3 +21,4 @@ def call_llm(prompt: str, llm_name: str, temperature: float = 0.6) -> str:
         return res.choices[0].message.content.strip()
     except Exception as e:
         return f"[GROQ ERROR] {e}"
+

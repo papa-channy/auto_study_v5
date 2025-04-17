@@ -1,56 +1,46 @@
-# 📁 logs/log_reporter.py
-
-import os, json
-import pandas as pd
+import os
 from datetime import datetime
-from tools.paths import (
-    SETTING_JSON_PATH, RAW_QUESTIONS_PATH, CLEAN_QUESTIONS_PATH,
-    STRUCTURED_QUESTIONS_PATH, QUESTIONS_XLSX_PATH, LOG_REPORT_DIR
-)
+from tools.paths import LOGS_DIR
 
-def count_lines(path):
-    if not os.path.exists(path):
-        return 0
-    with open(path, encoding="utf-8") as f:
-        return sum(1 for _ in f if _.strip())
+# ✅ 터미널 클리어 함수
+def clear_terminal():
+    os.system("cls" if os.name == "nt" else "clear")
 
-def count_json(path):
-    if not os.path.exists(path):
-        return 0
-    with open(path, encoding="utf-8") as f:
-        return len(json.load(f))
+# ✅ 터미널 + 파일 동시 출력 함수
+def print_and_log(text, file_path):
+    print(text)
+    with open(file_path, "a", encoding="utf-8") as f:
+        f.write(text + "\n")
 
-def save_log_report():
-    now = datetime.now()
-    date_str = now.strftime("%Y-%m-%d")
-    time_str = now.strftime("%Y-%m-%d %H:%M")
-    log_path = LOG_REPORT_DIR / f"report_{date_str}.txt"
+# ✅ 최근 리포트 읽기 (report_YYYY-MM-DD.txt)
+def get_latest_report():
+    report_dir = LOGS_DIR / "report"
+    if not report_dir.exists():
+        return None
 
-    with open(SETTING_JSON_PATH, encoding="utf-8") as f:
-        config = json.load(f)
+    reports = sorted(report_dir.glob("report_*.txt"), reverse=True)
+    return reports[0] if reports else None
 
-    raw_count = count_lines(RAW_QUESTIONS_PATH)
-    clean_count = count_lines(CLEAN_QUESTIONS_PATH)
-    final_count = count_json(STRUCTURED_QUESTIONS_PATH)
-    deleted = raw_count - clean_count if raw_count > 0 else 0
-    deletion_rate = f"{(deleted / raw_count * 100):.1f}%" if raw_count > 0 else "0%"
+# ✅ 메인 실행
+def main():
+    clear_terminal()
+    print("📋 최신 실행 로그 요약\n")
 
-    lines = [
-        f"📅 자동화 실행 리포트 - {time_str}\n",
-        f"✅ 설정 요약:",
-        f"- LLM: {config['LLM']}",
-        f"- 도구: {list(config['study_matrix&difficulty'].keys())}",
-        f"- 파일 형식: {config['file_type']}",
-        f"- 데이터셋: {', '.join(config['DATASET'])}",
-        f"- 호출 횟수: {config['count']}\n",
+    latest = get_latest_report()
+    if latest is None:
+        print("❌ 실행 로그 파일이 없습니다.")
+        return
 
-        f"📊 문제 생성 통계:",
-        f"- raw 수집: {raw_count}개",
-        f"- 전처리 후: {clean_count}개 (삭제 {deleted}개, {deletion_rate})",
-        f"- 최종 구조화: {final_count}개\n"
-    ]
+    log_path = LOGS_DIR / "log_reporter_history.txt"
+    print_and_log(f"🕒 [{datetime.now().strftime('%Y-%m-%d %H:%M')}] 읽은 로그: {latest.name}", log_path)
+    print()
 
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+    with open(latest, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            print_and_log(line, log_path)
 
-    print(f"📝 리포트 저장 완료 → {log_path.name}")
+if __name__ == "__main__":
+    main()

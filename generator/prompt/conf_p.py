@@ -1,58 +1,94 @@
-# 📁 generator/prompt/conf_p.py
+import json
+import pandas as pd
+from pathlib import Path
+from a import prompt_settings
+# ─────────────────────────────────────
+# 📁 설정 파일 로딩
+# ─────────────────────────────────────
+SETTING_PATH = Path("config/setting_config.json")
+with open(SETTING_PATH, "r", encoding="utf-8") as f:
+    setting = json.load(f)
 
-def prompt_question_generation(kor_tool, dataset_line, difficulty_line, count):
-    return f"""아래 조건에 따라 {kor_tool} 학습에 적합한 문제를 {count}개 생성해 주세요.
+difficulty_map = setting["study_matrix&difficulty"]
+tool_list = list(difficulty_map.keys())  # ✅ tool_list 자동 추출
+dataset_list = setting["DATASET"]
+count = setting["count"]
+llm = setting["LLM"]
+filetype = setting["file_type"]
 
-📊 사용 데이터셋: {dataset_line}
-🎯 난이도 범위: {difficulty_line}
-📝 문제는 한국어로 작성해 주세요.
+# ─────────────────────────────────────
+# 📄 df_template 생성 (q_a ~ q_m 컬럼 포함)
+# ─────────────────────────────────────
+columns = [
+    "num", "s_m", "dataset", "diffi", "category", "LLM", "f_t", "id", "q_m",
+    "q_a", "q_j", "q_k", "q_l", "q_n", "q_f", "q_g", "q_h"
+]
 
-✴️ 참고: 빅데이터 분석기사 시험에 출제되는 문제 유형을 참고해, 실제 출제 가능성이 높은 문제로 구성해 주세요.
+rows = []
+idx = 1
+for tool in tool_list:
+    for dataset in dataset_list:
+        for difficulty in difficulty_map.get(tool, []):  # ✅ 안전하게 get() 사용
+            for _ in range(count): # count 만큼 반복
+                row = {
+                    "num": idx,
+                    "s_m": tool,
+                    "dataset": dataset,
+                    "diffi": difficulty,
+                    "category": "",
+                    "LLM": llm,
+                    "f_t": filetype,
+                    "id": "",
+                    "q_m": "",
+                    "q_a": "",
+                    "q_j": "",
+                    "q_k": "",
+                    "q_l": "",
+                    "q_n": "",
+                    "q_f": "",
+                    "q_g": "",
+                    "q_h": ""
+                }
+                rows.append(row)
+                idx += 1
 
-📌 조건:
-- 질문은 자연어 문장으로 구성하고 명령형 어미(하세요, 하시오 등)를 사용해 주세요.
-- 배경 설명, 해설, 코드, 출력 예시는 포함하지 말고 질문 문장만 생성해 주세요.
+df_template = pd.DataFrame(rows, columns=columns)
+
+
+# ─────────────────────────────────────
+# 🎯 프롬프트 생성 함수들
+# ─────────────────────────────────────
+
+def prompt_question_generation(row):
+    a = """{kor_tool}라이브러리 를 {dataset_line} 데이터셋으로
+{count}개 만들거야. 문제는 반드시 한국어로 작성하고 용어만 영어로 하고 한국어로 해줘
+예시 참고 다양한 키워드로 질문 문장만 생성해줘()
+예시:"""
+    return a.format(
+        kor_tool=row["s_m"],
+        dataset_line=row["dataset"],
+        difficulty_line=row["diffi"],
+        count=1
+    )
+
+def prompt_enhance_difficulty(question_f: str):
+    return f"""아래의 기본 문제의 복잡도, 추론 수준을 높여서
+    중상급 수준의 문제로 발전시켜줘
+    반드시 한국어로 작성(일부 영어는 사용 가능)
+    {question_f}
 """
 
-def prompt_enhance_difficulty(question: str):
-    return f"""아래는 생성된 기본 문제입니다.  
-이 문제의 난이도 수준이 명확히 드러나도록 다시 작성해 주세요.
+def prompt_enhance_reasoning(question_g: str):
+    return f"""
+    {question_g}
+    해당 문제가 영어로 되어있으면 한글로 바꿔주고 중급자가 풀 수 있도록 해줘줘
 
-🎯 요구사항:
-1. 난이도 구간을 명확히 반영 (예: 중, 중상, 상, 최상)
-2. 동일 주제를 유지하면서 더 어려운 방식으로 질문 구성
-3. 명령형 문장 형태 유지 (ex. ~하세요, ~하시오)
-
---- 문제 원문 ---
-{question}
 """
 
-def prompt_enhance_reasoning(question: str):
-    return f"""아래는 난이도 반영된 문제입니다.  
-이 문제에 다음의 요소를 추가해, 사고력과 실무 응용력을 요구하는 고도화된 문제로 발전시켜 주세요.
-
-🧠 요구사항:
-1. 복합적인 추론이나 분석을 요구하도록 구성
-2. 실무에서 접할 수 있는 시나리오 상황을 반영
-3. 단순 통계나 시각화를 넘는 고차원적 사고를 유도
-
---- 문제 원문 ---
-{question}
-"""
-
-def prompt_extract_tags(question: str):
-    return f"""다음은 데이터 분석 관련 자연어 문제입니다.  
-이 문제를 아래 포맷에 따라 분석하고, 해당 정보를 리스트로 추출해 주세요.
-
-📌 출력 포맷:
-[이 문제를 풀기 위해 필요한 학습 영역, 사용된 데이터셋명, 문제 난이도, 문제의 주요 키워드 목록]
-
-📌 항목 설명:
-- 학습 영역: pandas, sql, matplotlib 등 실질적으로 필요한 도구
-- 데이터셋: 문제에서 실제로 언급된 dataset (예: titanic, iris 등)
-- 난이도: 초급, 중급, 고급, 최상급 중 LLM이 판단한 수준
-- 키워드: 이 문제에서 필요한 분석 기술, 개념 (예: groupby, 회귀, 시각화 등)
-
+def prompt_extract_tags(question_m: str):
+    return f"""{question_m} 이 문제는 데이터 분석 관련 문제야야
+- 키워드는는 문제에서 필요한 분석 기술, 개념 (예: groupby, 회귀, 시각화 등)
+- 키워드는 최대 3개만
 📝 문제:
-{question}
+
 """

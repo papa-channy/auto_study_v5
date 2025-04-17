@@ -1,10 +1,9 @@
 {
-  "DATASET": ["titanic", "tips", "iris", "mpg"],
+  "DATASET": ["titanic"],
   "LLM": "Groq",
   "study_matrix&difficulty": {
-    "pds": ["중", "중상", "최상"],
-    "sql": ["중", "상"],
-    "matplotlib": ["하", "중하"]
+    "pds": [ "상급"]
+    
   },
   "count": 1,
   "file_type": "ipynb"

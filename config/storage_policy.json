@@ -14,9 +14,9 @@
       "comparison_log_xlsx": "logs/q_comparison_log.xlsx"
     },
     "pandas_objects": {
-      "h": "raw_questions_df",
+      "h": "raw_questions_series",
       "i": "llm_tags_df",
-      "m": "clean_questions_df",
+      "m": "clean_questions_series",
       "o": "structured_questions_df",
       "p": "comparison_log_df"
     },

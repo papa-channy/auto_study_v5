@@ -1,39 +1,45 @@
-# 📁 notion/sec_pp.py
-
 import pandas as pd
-from tools.paths import STRUCTURED_QUESTIONS_PATH
+from tools.paths import FINAL_XLSX_PATH
 
-def prepare_for_notion(tool_filter=None):
+def load_final_df() -> pd.DataFrame:
+    """최종 o 파일 불러오기"""
+    return pd.read_excel(FINAL_XLSX_PATH)
+
+def format_for_notion(df: pd.DataFrame, tool_filter=None) -> pd.DataFrame:
     """
-    ✅ questions.json → Notion 업로드용 포맷으로 정제
-    - 누락 필드 보정
+    노션 업로드용 포맷으로 정리:
     - 빈 질문 제거
-    - 특정 도구만 필터링 (optional)
-    - ID 포함
+    - 도구(tool) 필터 가능
+    - 컬럼명 정리 (LLM 제거)
     """
+    df = df.copy()
 
-    try:
-        df = pd.read_json(STRUCTURED_QUESTIONS_PATH)
-    except Exception as e:
-        print(f"📭 구조화 문제 파일 로딩 실패: {e}")
-        return []
-
-    # 1. 유효 질문 필터링
+    # 1. 필터링
     df = df[df["question"].notnull() & (df["question"].str.strip() != "")]
-
-    # 2. tool 필터링 (선택)
     if tool_filter:
-        df = df[df["tool"].isin(tool_filter)]
+        df = df[df["s_m"].isin(tool_filter)]
 
-    # 3. 누락 필드 기본값 처리
-    defaults = {
-        "tool": "unknown", "dataset": "unknown", "difficulty": "중", "category": "기타", "id": "UNKNOWN"
-    }
-    for col, default in defaults.items():
-        if col not in df.columns:
-            df[col] = default
-        else:
-            df[col].fillna(default, inplace=True)
+    # 2. 필요 컬럼만 추리고 LLM 제거
+    df = df[["id", "s_m", "dataset", "diffi", "category", "question"]]
 
-    print(f"✅ Notion 업로드용 정제 완료: {len(df)}개")
-    return df[["id", "tool", "dataset", "difficulty", "category", "question"]].to_dict(orient="records")
+    # 3. 컬럼명 통일
+    df.rename(columns={
+        "s_m": "Tool",
+        "dataset": "Dataset",
+        "diffi": "Difficulty",
+        "category": "Category",
+        "question": "Question"
+    }, inplace=True)
+
+    # 4. index 설정
+    df.reset_index(drop=True, inplace=True)
+    df.index += 1
+    df.index.name = "No"
+
+    return df
+
+# 테스트
+if __name__ == "__main__":
+    df = load_final_df()
+    notion_df = format_for_notion(df)
+    print(notion_df.head())

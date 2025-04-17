@@ -1,68 +1,33 @@
-# 📁 generator/prompt/p_gen.py
+import pandas as pd
+from generator.prompt.ex_manager import get_example_series
+from generator.prompt.conf_p import prompt_question_generation
 
-import os
-# ✅ 정확한 경로
-from generator.prompt.conf_p import (
-    prompt_question_generation,
-    prompt_enhance_difficulty,
-    prompt_enhance_reasoning,
-    prompt_extract_tags
-)
-
-from tools.paths import PROMPT_DIR
-
-
-# ─────────────────────────────────────────────
-# 🔹 j = a + e : 질문 생성 프롬프트
-# ─────────────────────────────────────────────
-def generate_prompt_question(kor_tool, dataset_list, difficulty_list, count, examples_str):
-    dataset_line = ", ".join(dataset_list)
-    difficulty_line = ", ".join(difficulty_list)
-    base = prompt_question_generation(kor_tool, dataset_line, difficulty_line, count)
-    return f"{base}\n\n📌 최근 예시:\n{examples_str}"
-
-# ─────────────────────────────────────────────
-# 🔹 k = f + b : 난이도 강화 프롬프트
-# ─────────────────────────────────────────────
-def generate_prompt_enhance_difficulty(question: str):
-    return prompt_enhance_difficulty(question)
-
-# ─────────────────────────────────────────────
-# 🔹 l = g + c : 추론 강화 프롬프트
-# ─────────────────────────────────────────────
-def generate_prompt_enhance_reasoning(question: str):
-    return prompt_enhance_reasoning(question)
-
-# ─────────────────────────────────────────────
-# 🔹 n = m + d : 분류 태깅용 프롬프트
-# ─────────────────────────────────────────────
-def generate_prompt_extract_tags(question: str):
-    return prompt_extract_tags(question)
-
-# ─────────────────────────────────────────────
-# 💾 저장 유틸
-# ─────────────────────────────────────────────
-def save_prompt(prompt: str, tool: str, stage: str, mode: str = "temp"):
+def generate_prompt_j(df_template, m_df) -> tuple[dict, pd.DataFrame]:
     """
-    mode:
-    - temp: 임시 파일 (p_{tool}_{stage}.txt)
-    - persistent: 보존용 로그 (p_{tool}_{stage}_log.txt)
-    - split: prompt/{stage}/p_{tool}.txt
+    df_template과 예시 시리즈를 이용해 j 프롬프트 (a + e) 딕셔너리 반환
+    + ex_1~3이 q_m을 유도한 예시로 정확히 동기화된 ex_df 반환
     """
-    filename = f"p_{tool}_{stage}.txt"
+    total = len(df_template)
+    kor_tool = df_template.iloc[0]["s_m"]
 
-    if mode == "persistent":
-        filename = f"p_{tool}_{stage}_log.txt"
-        path = os.path.join(PROMPT_DIR, filename)
+    # ✅ 예시 생성
+    ex_df, _ = get_example_series(kor_tool, m_df, total_required=total)
 
-    elif mode == "split":
-        stage_dir = os.path.join(PROMPT_DIR, stage)
-        os.makedirs(stage_dir, exist_ok=True)
-        path = os.path.join(stage_dir, f"p_{tool}.txt")
+    # ✅ index 동기화
+    df = df_template.copy()
+    df.index = range(1, len(df) + 1)
+    ex_df.index = df.index
 
-    else:  # temp
-        path = os.path.join(PROMPT_DIR, filename)
+    # ✅ 프롬프트 딕셔너리 생성 + 예시 추출
+    prompt_j_dict = {}
 
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(prompt)
+    for i, (row, ex_row) in enumerate(zip(df.itertuples(), ex_df.itertuples()), start=1):
+        prompt_a = prompt_question_generation(row._asdict())
+        examples = [ex_row.ex_1, ex_row.ex_2]
+        examples_str = "\n\n".join(f"- {ex}" for ex in examples)
+
+        prompt_j = f"{prompt_a}\n\n📌 최근 예시:\n{examples_str}"
+        prompt_j_dict[str(row.num)] = prompt_j
+
+    return prompt_j_dict, ex_df
 

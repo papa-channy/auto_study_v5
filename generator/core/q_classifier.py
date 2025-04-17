@@ -1,27 +1,52 @@
-# 📁 generator/core/q_classifier.py
+import json
+import time
+from generator.prompt.conf_p import prompt_extract_tags
+from LLM.llm_selector import generate_by_llm
+from tools.paths import KEYWORDS_JSON_PATH
 
-from generator.prompt.p_gen import generate_prompt_extract_tags
-from generator.core.q_raw_generator import generate_raw_questions
 
-def classify_questions(o: list[dict], llm_name: str) -> list[list]:
-    """
-    ✅ o["question"] + d → i
-    - 각 문제에 대해 분류 프롬프트 생성(n)
-    - LLM에게 전달하여 분석 정보(i) 추출
-    - 결과는 [tool, dataset, 난이도, 키워드리스트] 형식의 리스트로 구성됨
-    """
-    i = []
+def load_keywords():
+    with open(KEYWORDS_JSON_PATH, encoding="utf-8") as f:
+        return json.load(f)
 
-    for q in o:
-        prompt = generate_prompt_extract_tags(q["question"])
-        response = generate_raw_questions(prompt, llm_name)
-        try:
-            tags = eval(response[0]) if response else ["", "", "", []]
-            if not isinstance(tags, list) or len(tags) < 4:
-                raise ValueError
-        except:
-            tags = ["", "", "", []]
 
-        i.append(tags)
+def auto_classify(text: str, keyword_map: dict) -> str:
+    for category, keywords in keyword_map.items():
+        if any(k in text for k in keywords):
+            return category
+    return "기타"
 
-    return i
+
+def classify_questions(df, llm_name):
+    results = []
+
+    for i, row in df.iterrows():
+        prompt_n = prompt_extract_tags(row["q_m"])
+        success = False
+        response = ""
+
+        for try_num in range(3):
+            try:
+                print(f"[LLM_i] 🔁 Try {try_num+1} for row {i}")
+                response = generate_by_llm(
+                    prompt=prompt_n,
+                    llm_name=llm_name,
+                    tool=row["s_m"],
+                    count=1
+                ).strip()
+                success = True
+                break
+            except Exception as e:
+                print(f"[ERROR_i] row {i}, 시도 {try_num+1}: {e}")
+                if "429" in str(e):
+                    time.sleep(8)
+                else:
+                    time.sleep(2)
+
+        if not success:
+            response = "[GROQ ERROR] classify_questions 실패"
+
+        results.append(response)
+        time.sleep(1.5)
+
+    return results

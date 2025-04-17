@@ -1,55 +1,30 @@
-# 📁 generator/core/q_main.py
 import pandas as pd
-from generator.prompt.p_gen import generate_prompt_question
-from generator.core.q_raw_generator import generate_raw_questions
-from generator.core.q_enhancer import enhance_difficulty, enhance_reasoning
+from generator.prompt.conf_p import df_template
+from generator.prompt.p_gen import generate_prompt_j
+from generator.core.q_raw_generator import generate_question_f, generate_question_g, generate_question_h
+from generator.post.preprocess import preprocess_df
 from generator.core.q_classifier import classify_questions
-from generator.post.preprocess import preprocess_questions
 from generator.post.prepro2 import structure_questions
-from generator.post.connected_log import connect_setting_vs_llm
 
-def run_pipeline(tool_list, dataset_list, difficulty_map, count, llm):
-    # 1️⃣ 초기 df 선언
-    o_df = pd.DataFrame(columns=["tool", "dataset", "difficulty", "category", "question", "id"])
-    i_df = pd.DataFrame(columns=["tool", "dataset", "difficulty", "category", "keywords"])
 
-    p_list = []
+def run_pipeline(m_df, llm_name):
+    from generator.prompt.conf_p import df_template
+    print("🚀 파이프라인 실행 시작")
+    # Step 1: 프롬프트 생성 (j = a + e)
+    prompts_j, ex_df = generate_prompt_j(df_template, m_df)
+    
+    # ✅ 예시 붙이기
+    df_template = df_template.reset_index(drop=True)
+    ex_df = ex_df.reset_index(drop=True)
+    df_template = pd.concat([df_template, ex_df], axis=1)
 
-    # 2️⃣ 루프 돌면서 row 생성 & 누적
-    for tool in tool_list:
-        kor_tool = tool.upper()
-        difficulty_list = difficulty_map[tool]
-        recent_examples = "- (중) 샘플 예시 없음"
+    # Step 2~5 동일
+    df_f = generate_question_f(df_template.copy(), prompts_j, llm_name)
+    df_g = generate_question_g(df_f, llm_name)
+    df_h = generate_question_h(df_g, llm_name)
+    df_m = preprocess_df(df_h)
+    i_list = classify_questions(df_m, llm_name)
+    o_df = structure_questions(df_m, i_list)
+    print("✅ run_pipeline() 완료 → 문제 수:", len(o_df))
+    return o_df
 
-        # j = a + e
-        j = generate_prompt_question(kor_tool, dataset_list, difficulty_list, count, recent_examples)
-
-        # f → g → h
-        f = generate_raw_questions(j, llm)
-        g = enhance_difficulty(f, llm)
-        h = enhance_reasoning(g, llm)
-
-        # h → m → o
-        m = preprocess_questions(h)
-        o_rows = structure_questions(m, tool)  # ✅ list of dict
-        i_rows = classify_questions(o_rows, llm)  # ✅ list of dict
-
-        # ➕ DataFrame으로 한 줄씩 append
-        for o_row, i_row in zip(o_rows, i_rows):
-            next_idx = len(o_df)
-            o_df.loc[next_idx] = [
-                o_row["tool"], o_row["dataset"], o_row["difficulty"],
-                o_row["category"], o_row["question"], o_row["id"]
-            ]
-            i_df.loc[next_idx] = [
-                i_row["tool"], i_row["dataset"], i_row["difficulty"],
-                i_row["category"], i_row["keywords"]
-            ]
-
-        # 🔁 p 생성 → 누적
-        p_list.extend(connect_setting_vs_llm(o_df.iloc[-len(o_rows):], i_df.iloc[-len(i_rows):], llm))
-
-        print(f"✅ [{tool}] 처리 완료: {len(o_rows)}문제")
-
-    # 3️⃣ 리턴
-    return o_df, i_df, p_list
